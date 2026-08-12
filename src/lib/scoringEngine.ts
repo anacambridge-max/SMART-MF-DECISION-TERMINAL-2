@@ -2,8 +2,8 @@ import type { FundTechnicals } from "./amfiClient";
 import type { IndexQuote } from "./nseClient";
 
 export type ScoringWeights = {
-  strategicWeight: number; // 0–1, default 0.6
-  opportunityWeight: number; // 0–1, default 0.4
+  strategicWeight: number;
+  opportunityWeight: number;
 };
 
 export type FundScore = {
@@ -14,7 +14,7 @@ export type FundScore = {
   strategicScore: number;
   opportunityScore: number;
   finalScore: number;
-  indexMove: number | null; // today's % change for mapped index
+  indexMove: number | null;
   trendStatus: "uptrend" | "downtrend" | "sideways";
   actionLabel: "BUY ON DIP" | "SIP" | "WAIT" | "AVOID";
   classification: "Healthy Correction" | "Structural Breakdown" | "Neutral";
@@ -23,23 +23,17 @@ export type FundScore = {
   isAvoid: boolean;
 };
 
-// Clamp value between 0–100
 function clamp(v: number): number {
   return Math.max(0, Math.min(100, v));
 }
 
-// Compute Strategic Score (0–100)
-// Weights: trend (30), return consistency (25), drawdown position (25), relative strength (20)
 export function computeStrategicScore(tech: FundTechnicals, relativeStrengthVsNifty: number | null): number {
-  let score = 50; // neutral base
+  let score = 50;
 
-  // 1. Trend quality (30 pts max)
   if (tech.trendStatus === "uptrend") score += 30;
   else if (tech.trendStatus === "sideways") score += 10;
-  else score -= 20; // downtrend penalised
+  else score -= 20;
 
-  // 2. Return consistency (25 pts max)
-  // Positive across multiple horizons = quality
   let returnBonus = 0;
   if (tech.return1M !== null && tech.return1M > 0) returnBonus += 5;
   if (tech.return1M !== null && tech.return1M < -10) returnBonus -= 5;
@@ -48,19 +42,16 @@ export function computeStrategicScore(tech: FundTechnicals, relativeStrengthVsNi
   if (tech.return6M !== null && tech.return6M > 0) returnBonus += 8;
   if (tech.return1Y !== null && tech.return1Y > 0) returnBonus += 5;
   if (tech.return1Y !== null && tech.return1Y < -20) returnBonus -= 5;
-  score += clamp(returnBonus + 25) - 25; // normalize
+  score += clamp(returnBonus + 25) - 25;
 
-  // 3. Drawdown position (25 pts max)
-  // Deep drawdown from ATH with trend intact = cheap + quality
   if (tech.drawdown52W !== null) {
-    if (tech.drawdown52W > -5) score += 5; // Near highs = good
-    else if (tech.drawdown52W > -15) score += 15; // Moderate dip = very attractive
-    else if (tech.drawdown52W > -25) score += 20; // Significant correction
-    else if (tech.drawdown52W > -40) score += 10; // Deep drawdown, caution
-    else score -= 5; // Extreme drawdown = danger
+    if (tech.drawdown52W > -5) score += 5;
+    else if (tech.drawdown52W > -15) score += 15;
+    else if (tech.drawdown52W > -25) score += 20;
+    else if (tech.drawdown52W > -40) score += 10;
+    else score -= 5;
   }
 
-  // 4. Relative strength vs Nifty (20 pts max)
   if (relativeStrengthVsNifty !== null) {
     if (relativeStrengthVsNifty > 5) score += 20;
     else if (relativeStrengthVsNifty > 0) score += 12;
@@ -71,41 +62,31 @@ export function computeStrategicScore(tech: FundTechnicals, relativeStrengthVsNi
   return clamp(score);
 }
 
-// Compute Daily NAV Opportunity Score (0–100)
-// Higher score = better opportunity to invest today
-export function computeOpportunityScore(
-  tech: FundTechnicals,
-  indexMoveToday: number | null
-): number {
-  // Base: starts neutral
+export function computeOpportunityScore(tech: FundTechnicals, indexMoveToday: number | null): number {
   let score = 50;
 
-  // 1. Today's index/sector move (bigger fall = higher opportunity, if trend intact)
   if (indexMoveToday !== null) {
-    if (indexMoveToday < -3) score += 35; // Major fall = big opportunity
+    if (indexMoveToday < -3) score += 35;
     else if (indexMoveToday < -2) score += 25;
     else if (indexMoveToday < -1) score += 15;
     else if (indexMoveToday < -0.5) score += 8;
-    else if (indexMoveToday > 2) score -= 15; // Strong rally = less opportunity
+    else if (indexMoveToday > 2) score -= 15;
     else if (indexMoveToday > 1) score -= 8;
     else if (indexMoveToday > 0) score -= 3;
   }
 
-  // 2. Drawdown position (deeper dip from 52W high = more room for recovery)
   if (tech.drawdown52W !== null) {
-    if (tech.drawdown52W < -20) score += 20; // Deep correction
+    if (tech.drawdown52W < -20) score += 20;
     else if (tech.drawdown52W < -10) score += 12;
     else if (tech.drawdown52W < -5) score += 5;
-    else score -= 5; // Near highs — less opportunistic entry
+    else score -= 5;
   }
 
-  // 3. SMA structure / trend confirmation
-  if (tech.trendStatus === "uptrend") score += 10; // Trend intact = safe dip
-  else if (tech.trendStatus === "downtrend") score -= 30; // Structural concern
+  if (tech.trendStatus === "uptrend") score += 10;
+  else if (tech.trendStatus === "downtrend") score -= 30;
 
-  // 4. Short-term momentum (10D/20D)
   if (tech.momentum10D !== null) {
-    if (tech.momentum10D < -5) score += 8; // Short-term oversold
+    if (tech.momentum10D < -5) score += 8;
     else if (tech.momentum10D < -2) score += 4;
     else if (tech.momentum10D > 5) score -= 5;
   }
@@ -130,18 +111,10 @@ export type FundInput = {
   technicals: FundTechnicals;
 };
 
-export function scoreFunds(
-  funds: FundInput[],
-  indices: IndexData[],
-  weights: ScoringWeights
-): FundScore[] {
-  // Build index map
+export function scoreFunds(funds: FundInput[], indices: IndexData[], weights: ScoringWeights): FundScore[] {
   const indexMap = new Map<string, IndexData>();
-  for (const idx of indices) {
-    indexMap.set(idx.name.toUpperCase(), idx);
-  }
+  for (const idx of indices) indexMap.set(idx.name.toUpperCase(), idx);
 
-  // Get Nifty 50 for relative strength
   const nifty50 = indexMap.get("NIFTY 50");
   const nifty50Change = nifty50?.pChange ?? null;
 
@@ -151,19 +124,15 @@ export function scoreFunds(
     const proxyData = indexMap.get(proxyKey);
     const indexMove = proxyData?.pChange ?? nifty50Change;
 
-    // Relative strength of fund vs Nifty (using 50D momentum)
     const relStrength =
       tech.momentum50D !== null && nifty50Change !== null
-        ? tech.momentum50D - (nifty50Change * 10) // rough proxy for 50D nifty move
+        ? tech.momentum50D - nifty50Change * 10
         : null;
 
     const strategicScore = computeStrategicScore(tech, relStrength);
     const opportunityScore = computeOpportunityScore(tech, indexMove);
-    const finalScore =
-      weights.strategicWeight * strategicScore +
-      weights.opportunityWeight * opportunityScore;
+    const finalScore = weights.strategicWeight * strategicScore + weights.opportunityWeight * opportunityScore;
 
-    // Classification rules — explicit filter, not just blended score
     let isAvoid = false;
     let classification: FundScore["classification"] = "Neutral";
     let actionLabel: FundScore["actionLabel"] = "SIP";
@@ -173,11 +142,7 @@ export function scoreFunds(
       isAvoid = true;
       classification = "Structural Breakdown";
       actionLabel = "AVOID";
-      reason = `Fund below 50D & 200D SMA — structural downtrend. ${
-        tech.drawdown52W !== null
-          ? `52W drawdown: ${tech.drawdown52W.toFixed(1)}%`
-          : ""
-      }`;
+      reason = `Fund below 50D & 200D SMA — structural downtrend. ${tech.drawdown52W !== null ? `52W drawdown: ${tech.drawdown52W.toFixed(1)}%` : ""}`;
     } else if (indexMove !== null && indexMove < -1.5 && tech.trendStatus === "uptrend") {
       classification = "Healthy Correction";
       actionLabel = "BUY ON DIP";
@@ -191,7 +156,6 @@ export function scoreFunds(
       reason = "Market stable. Suitable for regular SIP.";
     }
 
-    // Force WAIT for sideways with negative momentum
     if (!isAvoid && tech.trendStatus === "sideways" && tech.momentum20D !== null && tech.momentum20D < -5) {
       actionLabel = "WAIT";
       reason = `Sideways trend with negative 20D momentum (${tech.momentum20D.toFixed(1)}%). Monitor before deploying.`;
@@ -225,59 +189,46 @@ export type MarketRegime = {
 
 export function computeMarketRegime(indices: IndexData[]): MarketRegime {
   if (indices.length === 0) {
-    return {
-      label: "NEUTRAL",
-      breadthPercent: 50,
-      strategyNote: "Market data unavailable. Maintain regular SIP.",
-      color: "yellow",
-    };
+    return { label: "NEUTRAL", breadthPercent: 50, strategyNote: "Market data unavailable. Maintain regular SIP.", color: "yellow" };
   }
 
   const greenCount = indices.filter((i) => i.pChange > 0).length;
   const breadthPercent = Math.round((greenCount / indices.length) * 100);
-
-  // Nifty 50 & broad market check
   const nifty = indices.find((i) => i.name.toUpperCase() === "NIFTY 50");
   const midcap = indices.find((i) => i.name.toUpperCase().includes("MIDCAP 150"));
   const smallcap = indices.find((i) => i.name.toUpperCase().includes("SMALLCAP"));
 
-  const broadMarketNegative =
-    (nifty?.pChange ?? 0) < -1 &&
-    (midcap?.pChange ?? 0) < -1 &&
-    (smallcap?.pChange ?? 0) < -1;
-
-  const broadMarketPositive =
-    (nifty?.pChange ?? 0) > 0.5 &&
-    breadthPercent > 60;
+  const broadMarketNegative = (nifty?.pChange ?? 0) < -1 && (midcap?.pChange ?? 0) < -1 && (smallcap?.pChange ?? 0) < -1;
+  const broadMarketPositive = (nifty?.pChange ?? 0) > 0.5 && breadthPercent > 60;
 
   if (broadMarketNegative || breadthPercent < 35) {
-    return {
-      label: "RISK OFF",
-      breadthPercent,
-      strategyNote:
-        "Broad market weakness. Continue core SIP, reduce tactical allocation, avoid chasing sector funds.",
-      color: "red",
-    };
-  } else if (broadMarketPositive || breadthPercent > 65) {
-    return {
-      label: "RISK ON",
-      breadthPercent,
-      strategyNote:
-        "Markets trending up. Continue SIP + deploy corrections selectively.",
-      color: "green",
-    };
-  } else {
-    return {
-      label: "NEUTRAL",
-      breadthPercent,
-      strategyNote:
-        "Mixed market signals. Stick to SIP, await clearer direction before tactical deployment.",
-      color: "yellow",
-    };
+    return { label: "RISK OFF", breadthPercent, strategyNote: "Broad market weakness. Continue core SIP, reduce tactical allocation, avoid chasing sector funds.", color: "red" };
   }
+  if (broadMarketPositive || breadthPercent > 65) {
+    return { label: "RISK ON", breadthPercent, strategyNote: "Markets trending up. Continue SIP + deploy corrections selectively.", color: "green" };
+  }
+  return { label: "NEUTRAL", breadthPercent, strategyNote: "Mixed market signals. Stick to SIP, await clearer direction before tactical deployment.", color: "yellow" };
 }
 
-// Generate mock/simulated index data when NSE is unreachable
+// Stable fallback helpers. They intentionally do NOT use Math.random().
+// A refresh on the same day therefore produces the same fallback snapshot.
+function stableHash(input: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function stableUnit(input: string): number {
+  return stableHash(input) / 4294967295;
+}
+
+function todayKey(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export function generateMockIndices(): IndexData[] {
   const INDICES = [
     { name: "NIFTY 50", base: 24000 },
@@ -301,41 +252,46 @@ export function generateMockIndices(): IndexData[] {
   ];
 
   return INDICES.map((idx) => {
-    const pChange = (Math.random() - 0.5) * 4; // -2% to +2%
-    const prevClose = idx.base;
-    const last = prevClose * (1 + pChange / 100);
+    const unit = stableUnit(`${todayKey()}:index:${idx.name}`);
+    const pChange = (unit - 0.5) * 4;
+    const previousClose = idx.base;
+    const last = previousClose * (1 + pChange / 100);
     return {
       name: idx.name,
-      pChange: parseFloat(pChange.toFixed(2)),
-      last: parseFloat(last.toFixed(2)),
-      previousClose: prevClose,
-      yearHigh: prevClose * 1.25,
-      yearLow: prevClose * 0.75,
+      pChange: Number(pChange.toFixed(2)),
+      last: Number(last.toFixed(2)),
+      previousClose,
+      yearHigh: previousClose * 1.25,
+      yearLow: previousClose * 0.75,
     };
   });
 }
 
 export function generateMockTechnicals(fundId: number): FundTechnicals {
-  const base = 100 + fundId * 50 + Math.random() * 200;
-  const trend = Math.random() > 0.3 ? "uptrend" : Math.random() > 0.5 ? "sideways" : "downtrend";
-  const drawdown52W = trend === "downtrend" ? -(15 + Math.random() * 25) : -(5 + Math.random() * 15);
+  const seed = `${todayKey()}:fund:${fundId}`;
+  const base = 100 + fundId * 50 + stableUnit(`${seed}:base`) * 200;
+  const trendUnit = stableUnit(`${seed}:trend`);
+  const trend: "uptrend" | "sideways" | "downtrend" = trendUnit > 0.3 ? "uptrend" : trendUnit > 0.15 ? "sideways" : "downtrend";
+  const drawdown52W = trend === "downtrend" ? -(15 + stableUnit(`${seed}:dd`) * 25) : -(5 + stableUnit(`${seed}:dd`) * 15);
+
+  const signed = (key: string, scale: number, offset = 0) => (stableUnit(`${seed}:${key}`) - 0.5 + offset) * scale;
 
   return {
     sma20: base * 0.98,
     sma50: base * 0.95,
     sma100: base * 0.92,
     sma200: base * 0.88,
-    return1M: (Math.random() - 0.3) * 10,
-    return3M: (Math.random() - 0.2) * 20,
-    return6M: (Math.random() - 0.1) * 30,
-    return1Y: (Math.random() + 0.1) * 25,
+    return1M: signed("r1m", 10, 0.2),
+    return3M: signed("r3m", 20, 0.2),
+    return6M: signed("r6m", 30, 0.15),
+    return1Y: (stableUnit(`${seed}:r1y`) + 0.1) * 25,
     drawdown52W,
     allTimeDrawdown: drawdown52W * 1.5,
-    momentum10D: (Math.random() - 0.4) * 8,
-    momentum20D: (Math.random() - 0.35) * 12,
-    momentum50D: (Math.random() - 0.25) * 20,
+    momentum10D: signed("m10", 8, 0.1),
+    momentum20D: signed("m20", 12, 0.15),
+    momentum50D: signed("m50", 20, 0.2),
     latestNav: base,
     navDate: new Date().toLocaleDateString("en-IN"),
-    trendStatus: trend as "uptrend" | "downtrend" | "sideways",
+    trendStatus: trend,
   };
 }
