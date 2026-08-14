@@ -7,6 +7,20 @@ type Props = {
   rank?: number;
 };
 
+function scoreBand(score: number): "Strong" | "Good" | "Watch" | "Weak" {
+  if (score >= 80) return "Strong";
+  if (score >= 65) return "Good";
+  if (score >= 50) return "Watch";
+  return "Weak";
+}
+
+function scoreBandClass(score: number): string {
+  if (score >= 80) return "border-emerald-700 bg-emerald-950/50 text-emerald-300";
+  if (score >= 65) return "border-sky-700 bg-sky-950/50 text-sky-300";
+  if (score >= 50) return "border-amber-700 bg-amber-950/50 text-amber-300";
+  return "border-red-700 bg-red-950/50 text-red-300";
+}
+
 function ScoreBar({
   label,
   value,
@@ -24,7 +38,7 @@ function ScoreBar({
       </div>
       <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all duration-500 ${color.includes("emerald") ? "bg-emerald-400" : color.includes("amber") ? "bg-amber-400" : "bg-blue-400"}`}
+          className={`h-full rounded-full transition-all duration-500 ${color.includes("emerald") ? "bg-emerald-400" : color.includes("amber") ? "bg-amber-400" : color.includes("sky") ? "bg-sky-400" : "bg-red-400"}`}
           style={{ width: `${value}%` }}
         />
       </div>
@@ -57,9 +71,10 @@ export function FundCard({ fund, rank }: Props) {
   const indexMoveColor =
     (fund.indexMove ?? 0) < 0 ? "text-red-400" : "text-emerald-400";
 
+  const band = scoreBand(fund.finalScore);
+
   return (
     <div className="bg-slate-900 border border-slate-700 rounded-xl p-4 hover:border-slate-500 transition-colors">
-      {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-3">
         <div className="flex items-start gap-2 flex-1 min-w-0">
           {rank !== undefined && (
@@ -68,42 +83,41 @@ export function FundCard({ fund, rank }: Props) {
             </span>
           )}
           <div className="min-w-0">
-            <h3 className="text-sm font-bold text-white truncate">
-              {fund.fundName}
-            </h3>
+            <h3 className="text-sm font-bold text-white truncate">{fund.fundName}</h3>
             <p className="text-xs text-slate-400 mt-0.5">{fund.category}</p>
           </div>
         </div>
-        <span
-          className={`text-xs font-black px-2 py-1 rounded-lg shrink-0 ${actionColors[fund.actionLabel] ?? "bg-slate-600 text-white"}`}
-        >
+        <span className={`text-xs font-black px-2 py-1 rounded-lg shrink-0 ${actionColors[fund.actionLabel] ?? "bg-slate-600 text-white"}`}>
           {fund.actionLabel}
         </span>
       </div>
 
-      {/* Scores */}
       <div className="space-y-1.5 mb-3">
         <ScoreBar
           label="Strategic Score"
           value={fund.strategicScore}
-          color={fund.strategicScore > 65 ? "text-emerald-400" : fund.strategicScore > 40 ? "text-amber-400" : "text-red-400"}
+          color={fund.strategicScore >= 80 ? "text-emerald-400" : fund.strategicScore >= 65 ? "text-sky-400" : fund.strategicScore >= 50 ? "text-amber-400" : "text-red-400"}
         />
         <ScoreBar
           label="NAV Opportunity Score"
           value={fund.opportunityScore}
-          color={fund.opportunityScore > 65 ? "text-emerald-400" : fund.opportunityScore > 40 ? "text-amber-400" : "text-red-400"}
+          color={fund.opportunityScore >= 80 ? "text-emerald-400" : fund.opportunityScore >= 65 ? "text-sky-400" : fund.opportunityScore >= 50 ? "text-amber-400" : "text-red-400"}
         />
-        <div className="flex justify-between items-center pt-1 border-t border-slate-700">
-          <span className="text-xs text-slate-400">Final Score</span>
-          <span className="text-lg font-black text-white">{fund.finalScore}<span className="text-xs text-slate-400">/100</span></span>
+        <div className="flex justify-between items-center pt-2 border-t border-slate-700">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-400">Final Score</span>
+            <span className={`text-[10px] font-black px-2 py-0.5 rounded-md border ${scoreBandClass(fund.finalScore)}`}>
+              {band}
+            </span>
+          </div>
+          <span className="text-lg font-black text-white">
+            {fund.finalScore}<span className="text-xs text-slate-400">/100</span>
+          </span>
         </div>
       </div>
 
-      {/* Proxy + move */}
       <div className="flex items-center justify-between text-xs mb-2">
-        <span className="text-slate-400">
-          📌 {fund.proxyIndex}
-        </span>
+        <span className="text-slate-400">📌 {fund.proxyIndex}</span>
         {fund.indexMove !== null && (
           <span className={`font-bold ${indexMoveColor}`}>
             {fund.indexMove >= 0 ? "+" : ""}{fund.indexMove.toFixed(2)}% today
@@ -111,20 +125,15 @@ export function FundCard({ fund, rank }: Props) {
         )}
       </div>
 
-      {/* Trend */}
       <div className="flex items-center justify-between text-xs mb-2">
         <span className={`font-medium ${trendColor}`}>{trendIcon}</span>
         {fund.technicals.drawdown52W !== null && (
           <span className="text-slate-400">
-            52W DD:{" "}
-            <span className={fund.technicals.drawdown52W < -10 ? "text-amber-400" : "text-slate-300"}>
-              {fund.technicals.drawdown52W.toFixed(1)}%
-            </span>
+            52W DD: <span className={fund.technicals.drawdown52W < -10 ? "text-amber-400" : "text-slate-300"}>{fund.technicals.drawdown52W.toFixed(1)}%</span>
           </span>
         )}
       </div>
 
-      {/* Classification */}
       <div className={`text-xs px-2 py-1 rounded-lg border ${
         fund.classification === "Healthy Correction"
           ? "border-emerald-700 bg-emerald-950/50 text-emerald-300"
@@ -138,10 +147,8 @@ export function FundCard({ fund, rank }: Props) {
         {fund.classification}
       </div>
 
-      {/* Reason */}
       <p className="text-xs text-slate-400 mt-2 leading-relaxed">{fund.reason}</p>
 
-      {/* NAV info */}
       {fund.technicals.latestNav !== null && (
         <div className="mt-2 pt-2 border-t border-slate-800 flex justify-between text-xs text-slate-500">
           <span>NAV: ₹{fund.technicals.latestNav.toFixed(2)}</span>
