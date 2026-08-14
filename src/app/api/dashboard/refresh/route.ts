@@ -4,7 +4,7 @@ import { dashboardCache, appSettings, funds } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { fetchAllIndices } from "@/lib/nseClient";
 import { fetchHistoricalNav, computeTechnicals, type FundTechnicals } from "@/lib/amfiClient";
-import { scoreFunds, computeMarketRegime, type IndexData, type ScoringWeights } from "@/lib/scoringEngine";
+import { scoreFunds, computeMarketRegime, type IndexData, type ScoringWeights } from "@/lib/scoringEngineV2";
 import { DEFAULT_FUNDS } from "@/lib/fundConfig";
 
 const TARGET_INDICES = [
@@ -117,16 +117,11 @@ export async function GET() {
       name: f.name,
       proxyIndex: f.proxyIndex,
       category: f.category,
-      // Always provide the required type. If historical NAV is unavailable,
-      // computeTechnicals([]) returns an explicit all-null technical state;
-      // no invented prices or technical values are used.
       technicals: fundTechnicalsMap.get(f.id) ?? computeTechnicals([]),
     }));
 
     const scoredFunds = scoreFunds(fundInputs, rawIndices, weights);
     const sortedFunds = [...scoredFunds].sort((a, b) => b.finalScore - a.finalScore || a.fundId - b.fundId);
-
-    // Explicitly separate the Top 5 investment candidates from the full watchlist.
     const topFunds = sortedFunds.filter((f) => !f.isAvoid).slice(0, 5);
     const avoidFunds = sortedFunds.filter((f) => f.isAvoid);
     const regime = computeMarketRegime(rawIndices);
