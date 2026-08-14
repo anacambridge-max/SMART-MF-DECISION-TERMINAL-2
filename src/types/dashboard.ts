@@ -27,6 +27,7 @@ export type FundScore = {
   strategicScore: number;
   opportunityScore: number;
   finalScore: number;
+  scoreBand: "Strong" | "Good" | "Watch" | "Weak";
   indexMove: number | null;
   trendStatus: TrendStatus;
   actionLabel: "BUY ON DIP" | "SIP" | "WAIT" | "AVOID";
