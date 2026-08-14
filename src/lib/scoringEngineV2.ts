@@ -30,6 +30,7 @@ export type FundScore = {
   strategicScore: number;
   opportunityScore: number;
   finalScore: number;
+  scoreBand: "Strong" | "Good" | "Watch" | "Weak";
   indexMove: number | null;
   trendStatus: "uptrend" | "downtrend" | "sideways";
   actionLabel: "BUY ON DIP" | "SIP" | "WAIT" | "AVOID";
@@ -42,17 +43,17 @@ export type FundScore = {
 const clamp = (v: number) => Math.max(0, Math.min(100, v));
 
 function trendComponent(trend: FundTechnicals["trendStatus"]): number {
-  if (trend === "uptrend") return 72;
-  if (trend === "sideways") return 50;
-  return 28;
+  if (trend === "uptrend") return 76;
+  if (trend === "sideways") return 54;
+  return 24;
 }
 
 function returnsComponent(tech: FundTechnicals): number {
   const values = [
-    [tech.return1M, 0.20],
-    [tech.return3M, 0.30],
+    [tech.return1M, 0.15],
+    [tech.return3M, 0.25],
     [tech.return6M, 0.25],
-    [tech.return1Y, 0.25],
+    [tech.return1Y, 0.35],
   ] as const;
   let weighted = 0;
   let weight = 0;
@@ -63,80 +64,82 @@ function returnsComponent(tech: FundTechnicals): number {
     }
   }
   if (!weight) return 50;
-  return clamp(50 + (weighted / weight) * 1.8);
+  return clamp(50 + (weighted / weight) * 2.2);
 }
 
 function drawdownQualityComponent(drawdown: number | null): number {
   if (drawdown === null || !Number.isFinite(drawdown)) return 50;
-  if (drawdown >= -5) return 66;
-  if (drawdown >= -10) return 62;
-  if (drawdown >= -20) return 55;
-  if (drawdown >= -30) return 46;
-  if (drawdown >= -40) return 38;
-  return 30;
+  if (drawdown >= -5) return 68;
+  if (drawdown >= -10) return 64;
+  if (drawdown >= -20) return 58;
+  if (drawdown >= -30) return 47;
+  if (drawdown >= -40) return 37;
+  return 28;
 }
 
 function relativeStrengthComponent(value: number | null): number {
   if (value === null || !Number.isFinite(value)) return 50;
-  if (value > 5) return 72;
-  if (value > 2) return 65;
-  if (value > 0) return 59;
-  if (value > -5) return 48;
-  return 36;
+  if (value > 8) return 82;
+  if (value > 5) return 74;
+  if (value > 2) return 67;
+  if (value > 0) return 60;
+  if (value > -3) return 50;
+  if (value > -7) return 41;
+  return 32;
 }
 
 export function computeStrategicScore(tech: FundTechnicals, relativeStrengthVsNifty: number | null): number {
-  // Strategic score measures underlying quality/trend, not whether today's NAV is cheap.
-  // This deliberately avoids stacking many additive bonuses that previously pushed most funds to 80-100.
+  // Strategic score = longer-term fund quality/trend. It is intentionally independent of today's dip.
   const score =
-    trendComponent(tech.trendStatus) * 0.40 +
+    trendComponent(tech.trendStatus) * 0.30 +
     returnsComponent(tech) * 0.30 +
     drawdownQualityComponent(tech.drawdown52W) * 0.15 +
-    relativeStrengthComponent(relativeStrengthVsNifty) * 0.15;
+    relativeStrengthComponent(relativeStrengthVsNifty) * 0.25;
   return clamp(score);
 }
 
 function dipComponent(indexMoveToday: number | null): number {
   if (indexMoveToday === null || !Number.isFinite(indexMoveToday)) return 50;
-  if (indexMoveToday <= -3) return 90;
-  if (indexMoveToday <= -2) return 80;
-  if (indexMoveToday <= -1) return 70;
-  if (indexMoveToday <= -0.5) return 60;
-  if (indexMoveToday <= 0) return 52;
-  if (indexMoveToday <= 1) return 44;
+  if (indexMoveToday <= -3) return 95;
+  if (indexMoveToday <= -2) return 84;
+  if (indexMoveToday <= -1) return 72;
+  if (indexMoveToday <= -0.5) return 61;
+  if (indexMoveToday <= 0) return 50;
+  if (indexMoveToday <= 1) return 43;
   if (indexMoveToday <= 2) return 35;
-  return 25;
+  return 28;
 }
 
 function drawdownOpportunityComponent(drawdown: number | null): number {
   if (drawdown === null || !Number.isFinite(drawdown)) return 50;
-  if (drawdown <= -30) return 88;
-  if (drawdown <= -20) return 80;
+  if (drawdown <= -30) return 94;
+  if (drawdown <= -20) return 84;
+  if (drawdown <= -15) return 76;
   if (drawdown <= -10) return 68;
-  if (drawdown <= -5) return 58;
+  if (drawdown <= -5) return 57;
   return 45;
 }
 
 function momentumComponent(momentum10D: number | null): number {
   if (momentum10D === null || !Number.isFinite(momentum10D)) return 50;
-  if (momentum10D <= -5) return 76;
-  if (momentum10D <= -2) return 66;
-  if (momentum10D <= 2) return 55;
-  if (momentum10D <= 5) return 45;
-  return 35;
+  if (momentum10D <= -8) return 82;
+  if (momentum10D <= -5) return 75;
+  if (momentum10D <= -2) return 65;
+  if (momentum10D <= 2) return 54;
+  if (momentum10D <= 5) return 44;
+  return 34;
 }
 
 function trendConfirmationComponent(trend: FundTechnicals["trendStatus"]): number {
-  if (trend === "uptrend") return 68;
+  if (trend === "uptrend") return 72;
   if (trend === "sideways") return 50;
-  return 25;
+  return 22;
 }
 
 export function computeOpportunityScore(tech: FundTechnicals, indexMoveToday: number | null): number {
-  // Opportunity is a separate tactical score: correction + drawdown + momentum + trend confirmation.
   const score =
-    dipComponent(indexMoveToday) * 0.40 +
-    drawdownOpportunityComponent(tech.drawdown52W) * 0.25 +
+    dipComponent(indexMoveToday) * 0.35 +
+    drawdownOpportunityComponent(tech.drawdown52W) * 0.30 +
     momentumComponent(tech.momentum10D) * 0.20 +
     trendConfirmationComponent(tech.trendStatus) * 0.15;
   return clamp(score);
@@ -147,6 +150,16 @@ export function scoreBand(score: number): "Strong" | "Good" | "Watch" | "Weak" {
   if (score >= 65) return "Good";
   if (score >= 50) return "Watch";
   return "Weak";
+}
+
+function calibrateOverallScore(raw: number, strategic: number, opportunity: number): number {
+  // Expand the useful middle of the scale so a 19-fund universe does not collapse into 60-65.
+  // The calibration is bounded and does not manufacture scores: stronger raw inputs receive more lift,
+  // weak inputs receive less. Missing-data neutral scores therefore remain near the middle.
+  const qualityTilt = (strategic - 50) * 0.12;
+  const opportunityTilt = (opportunity - 50) * 0.08;
+  const expanded = 50 + (raw - 50) * 1.22 + qualityTilt + opportunityTilt;
+  return clamp(expanded);
 }
 
 export function scoreFunds(funds: FundInput[], indices: IndexData[], weights: ScoringWeights): FundScore[] {
@@ -167,9 +180,11 @@ export function scoreFunds(funds: FundInput[], indices: IndexData[], weights: Sc
 
     const strategicScore = computeStrategicScore(tech, relativeStrength);
     const opportunityScore = computeOpportunityScore(tech, indexMove);
-    const finalScore = clamp(
+    const weightedRaw = clamp(
       strategicScore * weights.strategicWeight + opportunityScore * weights.opportunityWeight,
     );
+    const finalScore = Math.round(calibrateOverallScore(weightedRaw, strategicScore, opportunityScore));
+    const band = scoreBand(finalScore);
 
     let isAvoid = false;
     let classification: FundScore["classification"] = "Neutral";
@@ -189,6 +204,9 @@ export function scoreFunds(funds: FundInput[], indices: IndexData[], weights: Sc
       classification = "Healthy Correction";
       actionLabel = "SIP";
       reason = `Mild correction in ${fund.proxyIndex}. Suitable for staggered SIP deployment.`;
+    } else if (band === "Weak") {
+      actionLabel = "WAIT";
+      reason = "Overall score is weak. Wait for stronger trend or better correction confirmation.";
     } else {
       actionLabel = "SIP";
       reason = "Market stable. Prefer regular SIP over chasing the move.";
@@ -206,7 +224,8 @@ export function scoreFunds(funds: FundInput[], indices: IndexData[], weights: Sc
       category: fund.category,
       strategicScore: Math.round(strategicScore),
       opportunityScore: Math.round(opportunityScore),
-      finalScore: Math.round(finalScore),
+      finalScore,
+      scoreBand: band,
       indexMove,
       trendStatus: tech.trendStatus,
       actionLabel,
