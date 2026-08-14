@@ -12,10 +12,10 @@ export const DEFAULT_FUNDS: FundConfig[] = [
   { id: 2, name: "Quant Large and Mid Cap Fund Direct Growth", amfiCode: "120826", proxyIndex: "NIFTY LARGEMIDCAP 250", category: "Large & Mid Cap" },
   { id: 3, name: "Quant Multi Asset Fund Direct Growth", amfiCode: "120821", proxyIndex: "NIFTY 500", category: "Multi Asset" },
   { id: 4, name: "Quant Multi Cap Fund Direct Growth", amfiCode: "120823", proxyIndex: "NIFTY 500", category: "Multi Cap" },
-  { id: 5, name: "Quant Infrastructure Fund Direct Growth", amfiCode: "120833", proxyIndex: "NIFTY INFRA", category: "Sectoral - Infra" },
+  { id: 5, name: "Quant Infrastructure Fund Direct Growth", amfiCode: "120833", proxyIndex: "NIFTY INFRASTRUCTURE", category: "Sectoral - Infra" },
   { id: 6, name: "Quant BFSI Fund Direct Growth", amfiCode: "151791", proxyIndex: "NIFTY FINANCIAL SERVICES", category: "Sectoral - BFSI" },
   { id: 7, name: "SBI Nifty 50 Index Fund Direct Growth", amfiCode: "119827", proxyIndex: "NIFTY 50", category: "Index - Large Cap" },
-  { id: 8, name: "SBI Healthcare Opportunities Fund Direct Growth", amfiCode: "119783", proxyIndex: "NIFTY PHARMA", category: "Sectoral - Pharma" },
+  { id: 8, name: "SBI Healthcare Opportunities Fund Direct Growth", amfiCode: "119783", proxyIndex: "NIFTY HEALTHCARE", category: "Sectoral - Healthcare" },
   { id: 9, name: "SBI Focused Equity Fund Direct Growth", amfiCode: "119727", proxyIndex: "NIFTY 500", category: "Focused Equity" },
   { id: 10, name: "SBI Children's Benefit Fund Direct Growth", amfiCode: "148490", proxyIndex: "NIFTY 500", category: "Solution Oriented" },
   { id: 11, name: "Bandhan Small Cap Fund Direct Growth", amfiCode: "147946", proxyIndex: "NIFTY SMALLCAP 250", category: "Small Cap" },
@@ -25,7 +25,7 @@ export const DEFAULT_FUNDS: FundConfig[] = [
   { id: 15, name: "SBI Small Cap Fund Direct Growth", amfiCode: "125497", proxyIndex: "NIFTY SMALLCAP 250", category: "Small Cap" },
   { id: 16, name: "ICICI Prudential Value Discovery Fund Direct Growth", amfiCode: "120586", proxyIndex: "NIFTY 500", category: "Value" },
   { id: 17, name: "Axis ELSS Tax Saver Fund Direct Growth", amfiCode: "120503", proxyIndex: "NIFTY 50", category: "ELSS" },
-  { id: 18, name: "Sundaram Services Fund Direct Growth", amfiCode: "144835", proxyIndex: "NIFTY 500", category: "Thematic" },
+  { id: 18, name: "Sundaram Services Fund Direct Growth", amfiCode: "144835", proxyIndex: "NIFTY SERVICES SECTOR", category: "Thematic" },
   { id: 19, name: "Tata Digital India Fund Direct Growth", amfiCode: "135800", proxyIndex: "NIFTY IT", category: "Sectoral - IT" },
 ];
 
@@ -38,19 +38,22 @@ export const INDEX_LIST = [
   "NIFTY IT",
   "NIFTY AUTO",
   "NIFTY PHARMA",
+  "NIFTY HEALTHCARE",
   "NIFTY FMCG",
   "NIFTY METAL",
   "NIFTY REALTY",
   "NIFTY FINANCIAL SERVICES",
   "NIFTY ENERGY",
   "NIFTY PSU BANK",
-  "NIFTY INFRA",
+  "NIFTY INFRASTRUCTURE",
   "NIFTY LARGEMIDCAP 250",
   "NIFTY 500",
   "NIFTY MEDIA",
+  "NIFTY SERVICES SECTOR",
 ];
 
-// NSE index symbol mapping (for NSE API calls)
+// Canonical dashboard names mapped to the names returned by NSE.
+// NIFTY Infrastructure's official NSE symbol is NIFTYINFRA and its index name is Nifty Infrastructure.
 export const NSE_INDEX_MAP: Record<string, string> = {
   "NIFTY 50": "NIFTY 50",
   "NIFTY NEXT 50": "NIFTY NEXT 50",
@@ -60,15 +63,17 @@ export const NSE_INDEX_MAP: Record<string, string> = {
   "NIFTY IT": "NIFTY IT",
   "NIFTY AUTO": "NIFTY AUTO",
   "NIFTY PHARMA": "NIFTY PHARMA",
+  "NIFTY HEALTHCARE": "NIFTY HEALTHCARE",
   "NIFTY FMCG": "NIFTY FMCG",
   "NIFTY METAL": "NIFTY METAL",
   "NIFTY REALTY": "NIFTY REALTY",
   "NIFTY FINANCIAL SERVICES": "NIFTY FINANCIAL SERVICES",
   "NIFTY ENERGY": "NIFTY ENERGY",
   "NIFTY PSU BANK": "NIFTY PSU BANK",
-  "NIFTY INFRA": "NIFTY INFRA",
+  "NIFTY INFRASTRUCTURE": "NIFTY INFRASTRUCTURE",
   "NIFTY LARGEMIDCAP 250": "NIFTY LARGEMIDCAP 250",
   "NIFTY 500": "NIFTY 500",
   "NIFTY MEDIA": "NIFTY MEDIA",
+  "NIFTY SERVICES SECTOR": "NIFTY SERVICES SECTOR",
   "GOLD": "GOLD",
 };
