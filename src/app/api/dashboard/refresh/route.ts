@@ -7,44 +7,21 @@ import { fetchHistoricalNav, computeTechnicals, type FundTechnicals } from "@/li
 import { scoreFunds, computeMarketRegime, type IndexData, type ScoringWeights } from "@/lib/scoringEngine";
 import { DEFAULT_FUNDS } from "@/lib/fundConfig";
 
-// Canonical names used by the dashboard. These must match the actual NSE index names,
-// not ETF prices or similarly named thematic proxies.
 const TARGET_INDICES = [
-  "NIFTY 50",
-  "NIFTY NEXT 50",
-  "NIFTY MIDCAP 150",
-  "NIFTY SMALLCAP 250",
-  "NIFTY BANK",
-  "NIFTY IT",
-  "NIFTY AUTO",
-  "NIFTY PHARMA",
-  "NIFTY HEALTHCARE",
-  "NIFTY FMCG",
-  "NIFTY METAL",
-  "NIFTY REALTY",
-  "NIFTY FINANCIAL SERVICES",
-  "NIFTY ENERGY",
-  "NIFTY PSU BANK",
-  "NIFTY INFRASTRUCTURE",
-  "NIFTY LARGEMIDCAP 250",
-  "NIFTY 500",
-  "NIFTY MEDIA",
-  "NIFTY SERVICES SECTOR",
+  "NIFTY 50", "NIFTY NEXT 50", "NIFTY MIDCAP 150", "NIFTY SMALLCAP 250", "NIFTY BANK", "NIFTY IT", "NIFTY AUTO", "NIFTY PHARMA", "NIFTY FMCG", "NIFTY METAL", "NIFTY REALTY", "NIFTY FINANCIAL SERVICES", "NIFTY ENERGY", "NIFTY PSU BANK", "NIFTY INFRASTRUCTURE", "NIFTY LARGEMIDCAP 250", "NIFTY 500", "NIFTY MEDIA",
 ];
 
-// NSE sometimes exposes the infrastructure index using the legacy/short form.
-// Accept only known aliases and normalize them to the official dashboard name.
-const INDEX_ALIASES: Record<string, string> = {
-  "NIFTY INFRA": "NIFTY INFRASTRUCTURE",
-  "NIFTY INFRASTRUCTURE": "NIFTY INFRASTRUCTURE",
-  "NIFTY INFRASTRUCTURE TRI": "NIFTY INFRASTRUCTURE",
-  "NIFTY HEALTHCARE": "NIFTY HEALTHCARE",
-  "NIFTY SERVICES SECTOR": "NIFTY SERVICES SECTOR",
+const INDEX_ALIASES: Record<string, string[]> = {
+  "NIFTY INFRASTRUCTURE": ["NIFTY INFRASTRUCTURE", "NIFTY INFRA", "NIFTYINFRA"],
 };
 
-function canonicalIndexName(name: string): string {
-  const key = name.trim().toUpperCase();
-  return INDEX_ALIASES[key] ?? key;
+function findNseIndex(map: Map<string, any>, target: string) {
+  const aliases = INDEX_ALIASES[target] ?? [target];
+  for (const alias of aliases) {
+    const hit = map.get(alias.toUpperCase());
+    if (hit) return hit;
+  }
+  return undefined;
 }
 
 async function getSettings(): Promise<Record<string, string>> {
@@ -60,7 +37,7 @@ async function getActiveFunds() {
   try {
     const rows = await db.select().from(funds).where(eq(funds.isActive, true));
     if (rows.length === 0) return DEFAULT_FUNDS;
-    return rows.map((r) => ({ id: r.id, name: r.name, amfiCode: r.amfiCode ?? "", proxyIndex: canonicalIndexName(r.proxyIndex), category: r.category ?? "Other" }));
+    return rows.map((r) => ({ id: r.id, name: r.name, amfiCode: r.amfiCode ?? "", proxyIndex: r.proxyIndex, category: r.category ?? "Other" }));
   } catch {
     return DEFAULT_FUNDS;
   }
@@ -76,7 +53,6 @@ export async function GET() {
     const weights: ScoringWeights = { strategicWeight, opportunityWeight };
     const activeFunds = await getActiveFunds();
 
-    // Previous real snapshot is allowed as a stale-data fallback, but NEVER invent a new price.
     let cachedPayload: any = null;
     try {
       const cachedRows = await db.select().from(dashboardCache).limit(1);
@@ -87,7 +63,7 @@ export async function GET() {
 
     const cachedIndices: IndexData[] = Array.isArray(cachedPayload?.indices) ? cachedPayload.indices : [];
     const cachedFunds: any[] = Array.isArray(cachedPayload?.allFunds) ? cachedPayload.allFunds : [];
-    const cachedIndexMap = new Map<string, IndexData>(cachedIndices.map((i) => [canonicalIndexName(i.name), { ...i, name: canonicalIndexName(i.name) }]));
+    const cachedIndexMap = new Map<string, IndexData>(cachedIndices.map((i) => [i.name.toUpperCase(), i]));
     const cachedFundMap = new Map<number, any>(cachedFunds.map((f) => [Number(f.fundId), f]));
 
     let rawIndices: IndexData[] = [];
@@ -97,37 +73,20 @@ export async function GET() {
       const nseData = await fetchAllIndices();
       if (nseData.length === 0) throw new Error("No index data returned from NSE");
 
-      const nseMap = new Map<string, (typeof nseData)[number]>();
-      for (const item of nseData) {
-        const canonical = canonicalIndexName(item.name);
-        if (!nseMap.has(canonical)) nseMap.set(canonical, item);
-      }
-
-      // Build ONLY from actual NSE rows. Missing indices remain unavailable rather than being fabricated.
+      const nseMap = new Map(nseData.map((i) => [i.name.toUpperCase(), i]));
       rawIndices = TARGET_INDICES.map((name) => {
-        const q = nseMap.get(name);
+        const q = findNseIndex(nseMap, name);
         if (q) {
-          return {
-            name,
-            pChange: q.pChange,
-            last: q.last,
-            previousClose: q.previousClose,
-            yearHigh: q.yearHigh,
-            yearLow: q.yearLow,
-          };
+          return { name, pChange: q.pChange, last: q.last, previousClose: q.previousClose, yearHigh: q.yearHigh, yearLow: q.yearLow };
         }
-
-        const cached = cachedIndexMap.get(name);
-        if (cached) return { ...cached, name };
-
-        return { name, pChange: 0, last: 0, previousClose: 0, yearHigh: 0, yearLow: 0 };
+        const cached = cachedIndexMap.get(name.toUpperCase());
+        return cached ?? { name, pChange: 0, last: 0, previousClose: 0, yearHigh: 0, yearLow: 0 };
       });
     } catch {
       if (cachedIndices.length > 0) {
-        rawIndices = TARGET_INDICES.map((name) => cachedIndexMap.get(name) ?? { name, pChange: 0, last: 0, previousClose: 0, yearHigh: 0, yearLow: 0 });
+        rawIndices = TARGET_INDICES.map((name) => cachedIndexMap.get(name.toUpperCase()) ?? { name, pChange: 0, last: 0, previousClose: 0, yearHigh: 0, yearLow: 0 });
         dataSourceStatus = "cached";
       } else {
-        // No fake fallback. The UI will explicitly show unavailable data.
         rawIndices = TARGET_INDICES.map((name) => ({ name, pChange: 0, last: 0, previousClose: 0, yearHigh: 0, yearLow: 0 }));
         dataSourceStatus = "unavailable";
       }
@@ -146,10 +105,10 @@ export async function GET() {
         }
 
         const cachedTech = cachedFundMap.get(Number(fund.id))?.technicals as FundTechnicals | undefined;
-        if (cachedTech) fundTechnicalsMap.set(fund.id, cachedTech);
+        fundTechnicalsMap.set(fund.id, cachedTech ?? computeTechnicals([]));
       } catch {
         const cachedTech = cachedFundMap.get(Number(fund.id))?.technicals as FundTechnicals | undefined;
-        if (cachedTech) fundTechnicalsMap.set(fund.id, cachedTech);
+        fundTechnicalsMap.set(fund.id, cachedTech ?? computeTechnicals([]));
       }
     }));
 
@@ -158,14 +117,16 @@ export async function GET() {
       name: f.name,
       proxyIndex: f.proxyIndex,
       category: f.category,
-      technicals: fundTechnicalsMap.get(f.id) ?? (cachedFundMap.get(Number(f.id))?.technicals as FundTechnicals | undefined),
+      // Always provide the required type. If historical NAV is unavailable,
+      // computeTechnicals([]) returns an explicit all-null technical state;
+      // no invented prices or technical values are used.
+      technicals: fundTechnicalsMap.get(f.id) ?? computeTechnicals([]),
     }));
 
     const scoredFunds = scoreFunds(fundInputs, rawIndices, weights);
     const sortedFunds = [...scoredFunds].sort((a, b) => b.finalScore - a.finalScore || a.fundId - b.fundId);
 
     // Explicitly separate the Top 5 investment candidates from the full watchlist.
-    // These are the five highest-scoring non-avoid funds only.
     const topFunds = sortedFunds.filter((f) => !f.isAvoid).slice(0, 5);
     const avoidFunds = sortedFunds.filter((f) => f.isAvoid);
     const regime = computeMarketRegime(rawIndices);
