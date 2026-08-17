@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { dashboardCache, appSettings, funds } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { fetchAllIndices } from "@/lib/nseClient";
+import { fetchAllIndices, fetchEquityQuote } from "@/lib/nseClient";
 import { fetchHistoricalNav, computeTechnicals, type FundTechnicals } from "@/lib/amfiClient";
 import { scoreFunds, computeMarketRegime, type IndexData, type ScoringWeights } from "@/lib/scoringEngineV2";
 import { DEFAULT_FUNDS } from "@/lib/fundConfig";
@@ -37,7 +37,20 @@ async function getActiveFunds() {
   try {
     const rows = await db.select().from(funds).where(eq(funds.isActive, true));
     if (rows.length === 0) return DEFAULT_FUNDS;
-    return rows.map((r) => ({ id: r.id, name: r.name, amfiCode: r.amfiCode ?? "", proxyIndex: r.proxyIndex, category: r.category ?? "Other" }));
+    return rows.map((r) => {
+      const configured = DEFAULT_FUNDS.find((x) => x.id === r.id || x.name === r.name);
+      return {
+        id: r.id,
+        name: r.name,
+        amfiCode: r.amfiCode ?? configured?.amfiCode ?? "",
+        proxyIndex: r.proxyIndex || configured?.proxyIndex || "NIFTY 50",
+        category: r.category ?? configured?.category ?? "Other",
+        underlyingAmfiCode: configured?.underlyingAmfiCode,
+        underlyingSchemeName: configured?.underlyingSchemeName,
+        underlyingNseSymbol: configured?.underlyingNseSymbol,
+        underlyingBseCode: configured?.underlyingBseCode,
+      };
+    });
   } catch {
     return DEFAULT_FUNDS;
   }
@@ -92,12 +105,37 @@ export async function GET() {
       }
     }
 
+    // UTI Gold ETF FoF is a fund-of-fund. Its tactical market proxy must be
+    // the actual underlying UTI Gold ETF, not NIFTY 50 and not a generic
+    // GOLD placeholder. NSE changed the ETF symbol to GOLDBETA in Dec-2025.
+    const goldFund = activeFunds.find((f) => f.id === 14 || f.name === "UTI Gold ETF FoF Direct Growth");
+    if (goldFund?.underlyingNseSymbol) {
+      const goldQuote = await fetchEquityQuote(goldFund.underlyingNseSymbol);
+      if (goldQuote) {
+        rawIndices = rawIndices.filter((i) => i.name.toUpperCase() !== "GOLD");
+        rawIndices.push({
+          name: "GOLD",
+          pChange: goldQuote.pChange,
+          last: goldQuote.last,
+          previousClose: goldQuote.previousClose,
+          yearHigh: 0,
+          yearLow: 0,
+        });
+      } else {
+        const cachedGold = cachedIndexMap.get("GOLD");
+        if (cachedGold) rawIndices.push(cachedGold);
+      }
+    }
+
     const fundTechnicalsMap = new Map<number, FundTechnicals>();
 
     await Promise.allSettled(activeFunds.map(async (fund) => {
       try {
-        if (fund.amfiCode && fund.amfiCode.length > 0) {
-          const history = await fetchHistoricalNav(fund.amfiCode);
+        // For FoFs, technical history should follow the underlying scheme.
+        // UTI Gold ETF FoF -> UTI Gold ETF AMFI scheme code 105463.
+        const technicalAmfiCode = fund.underlyingAmfiCode || fund.amfiCode;
+        if (technicalAmfiCode && technicalAmfiCode.length > 0) {
+          const history = await fetchHistoricalNav(technicalAmfiCode);
           if (history.length > 10) {
             fundTechnicalsMap.set(fund.id, computeTechnicals(history));
             return;
