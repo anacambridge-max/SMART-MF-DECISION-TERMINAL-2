@@ -7,10 +7,11 @@ export type FundConfig = {
   primarySector: string;
   primaryProxy: string;
   secondaryProxies: string[];
+  underlyingAmfiCode?: string;
+  underlyingSchemeName?: string;
 };
 
 // Approved fund universe — ONLY these funds are used by the terminal.
-// Explicit sector/index relationships drive tactical dip scoring.
 export const DEFAULT_FUNDS: FundConfig[] = [
   { id: 1, name: "Quant Flexi Cap Fund Direct Growth", amfiCode: "120843", proxyIndex: "NIFTY 500", category: "Flexi Cap", primarySector: "Broad Market", primaryProxy: "NIFTY 500", secondaryProxies: ["NIFTY 50"] },
   { id: 2, name: "Quant Large and Mid Cap Fund Direct Growth", amfiCode: "120826", proxyIndex: "NIFTY LARGEMIDCAP 250", category: "Large & Mid Cap", primarySector: "Large + Mid Cap", primaryProxy: "NIFTY LARGEMIDCAP 250", secondaryProxies: ["NIFTY 50", "NIFTY MIDCAP 150"] },
@@ -25,7 +26,7 @@ export const DEFAULT_FUNDS: FundConfig[] = [
   { id: 11, name: "Bandhan Small Cap Fund Direct Growth", amfiCode: "147946", proxyIndex: "NIFTY SMALLCAP 250", category: "Small Cap", primarySector: "Small Cap", primaryProxy: "NIFTY SMALLCAP 250", secondaryProxies: ["NIFTY 500"] },
   { id: 12, name: "HDFC Mid Cap Opportunities Fund Direct Growth", amfiCode: "118989", proxyIndex: "NIFTY MIDCAP 150", category: "Mid Cap", primarySector: "Mid Cap", primaryProxy: "NIFTY MIDCAP 150", secondaryProxies: ["NIFTY 500"] },
   { id: 13, name: "UTI Nifty Next 50 Index Fund Direct Growth", amfiCode: "143341", proxyIndex: "NIFTY NEXT 50", category: "Index - Large Cap", primarySector: "Next 50", primaryProxy: "NIFTY NEXT 50", secondaryProxies: ["NIFTY 50"] },
-  { id: 14, name: "UTI Gold ETF FoF Direct Growth", amfiCode: "150714", proxyIndex: "GOLD", category: "Commodity - Gold", primarySector: "Gold", primaryProxy: "GOLD", secondaryProxies: [] },
+  { id: 14, name: "UTI Gold ETF FoF Direct Growth", amfiCode: "150714", proxyIndex: "GOLD", category: "Commodity - Gold", primarySector: "Gold", primaryProxy: "GOLD", secondaryProxies: [], underlyingAmfiCode: "590101", underlyingSchemeName: "UTI Mutual Fund - UTI Gold Exchange Traded Fund" },
   { id: 15, name: "SBI Small Cap Fund Direct Growth", amfiCode: "125497", proxyIndex: "NIFTY SMALLCAP 250", category: "Small Cap", primarySector: "Small Cap", primaryProxy: "NIFTY SMALLCAP 250", secondaryProxies: ["NIFTY 500"] },
   { id: 16, name: "ICICI Prudential Value Discovery Fund Direct Growth", amfiCode: "120586", proxyIndex: "NIFTY 500", category: "Value", primarySector: "Broad Equity / Value", primaryProxy: "NIFTY 500", secondaryProxies: ["NIFTY 50"] },
   { id: 17, name: "Axis ELSS Tax Saver Fund Direct Growth", amfiCode: "120503", proxyIndex: "NIFTY 50", category: "ELSS", primarySector: "Large Cap / Broad Equity", primaryProxy: "NIFTY 50", secondaryProxies: ["NIFTY 500"] },
