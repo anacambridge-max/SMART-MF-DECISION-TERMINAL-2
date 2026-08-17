@@ -43,7 +43,9 @@ async function getActiveFunds() {
         id: r.id,
         name: r.name,
         amfiCode: r.amfiCode ?? configured?.amfiCode ?? "",
-        proxyIndex: configured?.underlyingNseSymbol || r.proxyIndex || configured?.proxyIndex || "NIFTY 50",
+        // IMPORTANT: proxyIndex is the benchmark used for scoring.
+        // Do NOT replace it with an ETF ticker. The underlying NSE symbol is used only for the live quote.
+        proxyIndex: configured?.proxyIndex || r.proxyIndex || "NIFTY 50",
         category: r.category ?? configured?.category ?? "Other",
         underlyingAmfiCode: configured?.underlyingAmfiCode,
         underlyingSchemeName: configured?.underlyingSchemeName,
@@ -105,8 +107,9 @@ export async function GET() {
       }
     }
 
-    // UTI Gold ETF FoF follows the actual underlying UTI Gold ETF:
-    // NSE GOLDBETA, BSE 590101, AMFI 105463.
+    // UTI Gold ETF FoF follows the actual underlying UTI Gold ETF for live market data.
+    // Official mapping: UTI Gold ETF -> NSE GOLDBETA; BSE code 590101; AMFI scheme code 105463.
+    // The FoF is scored against GOLD, while GOLD is populated from the live GOLDBETA quote.
     const goldFund = activeFunds.find((f) => f.id === 14 || f.name === "UTI Gold ETF FoF Direct Growth");
     if (goldFund?.underlyingNseSymbol) {
       const goldQuote = await fetchEquityQuote(goldFund.underlyingNseSymbol);
@@ -120,15 +123,16 @@ export async function GET() {
           yearHigh: 0,
           yearLow: 0,
         };
-        rawIndices.push({ name: "GOLDBETA", ...quote });
         rawIndices.push({ name: "GOLD", ...quote });
+        // Keep the exchange ticker available for diagnostics, but do not use it as the fund benchmark.
+        rawIndices.push({ name: "GOLDBETA", ...quote });
       } else {
-        const cachedGold = cachedIndexMap.get("GOLDBETA") ?? cachedIndexMap.get("GOLD");
+        const cachedGold = cachedIndexMap.get("GOLD") ?? cachedIndexMap.get("GOLDBETA");
         if (cachedGold) {
           const { name: _cachedName, ...cachedGoldValues } = cachedGold;
           rawIndices = rawIndices.filter((i) => !["GOLD", "GOLDBETA"].includes(i.name.toUpperCase()));
-          rawIndices.push({ name: "GOLDBETA", ...cachedGoldValues });
           rawIndices.push({ name: "GOLD", ...cachedGoldValues });
+          rawIndices.push({ name: "GOLDBETA", ...cachedGoldValues });
         }
       }
     }
