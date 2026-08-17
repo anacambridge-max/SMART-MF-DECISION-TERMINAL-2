@@ -15,7 +15,7 @@ export const DEFAULT_FUNDS: FundConfig[] = [
   { id: 5, name: "Quant Infrastructure Fund Direct Growth", amfiCode: "120833", proxyIndex: "NIFTY INFRASTRUCTURE", category: "Sectoral - Infra" },
   { id: 6, name: "Quant BFSI Fund Direct Growth", amfiCode: "151791", proxyIndex: "NIFTY FINANCIAL SERVICES", category: "Sectoral - BFSI" },
   { id: 7, name: "SBI Nifty 50 Index Fund Direct Growth", amfiCode: "119827", proxyIndex: "NIFTY 50", category: "Index - Large Cap" },
-  { id: 8, name: "SBI Healthcare Opportunities Fund Direct Growth", amfiCode: "119783", proxyIndex: "NIFTY HEALTHCARE", category: "Sectoral - Healthcare" },
+  { id: 8, name: "SBI Healthcare Opportunities Fund Direct Growth", amfiCode: "119783", proxyIndex: "NIFTY PHARMA", category: "Sectoral - Healthcare" },
   { id: 9, name: "SBI Focused Equity Fund Direct Growth", amfiCode: "119727", proxyIndex: "NIFTY 500", category: "Focused Equity" },
   { id: 10, name: "SBI Children's Benefit Fund Direct Growth", amfiCode: "148490", proxyIndex: "NIFTY 500", category: "Solution Oriented" },
   { id: 11, name: "Bandhan Small Cap Fund Direct Growth", amfiCode: "147946", proxyIndex: "NIFTY SMALLCAP 250", category: "Small Cap" },
