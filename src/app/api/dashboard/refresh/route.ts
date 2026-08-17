@@ -89,9 +89,7 @@ export async function GET() {
       const nseMap = new Map(nseData.map((i) => [i.name.toUpperCase(), i]));
       rawIndices = TARGET_INDICES.map((name) => {
         const q = findNseIndex(nseMap, name);
-        if (q) {
-          return { name, pChange: q.pChange, last: q.last, previousClose: q.previousClose, yearHigh: q.yearHigh, yearLow: q.yearLow };
-        }
+        if (q) return { name, pChange: q.pChange, last: q.last, previousClose: q.previousClose, yearHigh: q.yearHigh, yearLow: q.yearLow };
         const cached = cachedIndexMap.get(name.toUpperCase());
         return cached ?? { name, pChange: 0, last: 0, previousClose: 0, yearHigh: 0, yearLow: 0 };
       });
@@ -105,25 +103,24 @@ export async function GET() {
       }
     }
 
-    // UTI Gold ETF FoF is a fund-of-fund. Its tactical market proxy must be
-    // the actual underlying UTI Gold ETF, not NIFTY 50 and not a generic
-    // GOLD placeholder. NSE changed the ETF symbol to GOLDBETA in Dec-2025.
+    // UTI Gold ETF FoF follows the actual underlying UTI Gold ETF.
+    // NSE symbol: GOLDBETA. BSE scrip: 590101. AMFI scheme code: 105463.
     const goldFund = activeFunds.find((f) => f.id === 14 || f.name === "UTI Gold ETF FoF Direct Growth");
     if (goldFund?.underlyingNseSymbol) {
       const goldQuote = await fetchEquityQuote(goldFund.underlyingNseSymbol);
       if (goldQuote) {
-        rawIndices = rawIndices.filter((i) => i.name.toUpperCase() !== "GOLD");
-        rawIndices.push({
-          name: "GOLD",
-          pChange: goldQuote.pChange,
-          last: goldQuote.last,
-          previousClose: goldQuote.previousClose,
-          yearHigh: 0,
-          yearLow: 0,
-        });
+        rawIndices = rawIndices.filter((i) => !["GOLD", "GOLDBETA"].includes(i.name.toUpperCase()));
+        const quote = { pChange: goldQuote.pChange, last: goldQuote.last, previousClose: goldQuote.previousClose, yearHigh: 0, yearLow: 0 };
+        rawIndices.push({ name: "GOLDBETA", ...quote });
+        // Keep GOLD as an internal alias so the configured sector exposure also resolves.
+        rawIndices.push({ name: "GOLD", ...quote });
       } else {
-        const cachedGold = cachedIndexMap.get("GOLD");
-        if (cachedGold) rawIndices.push(cachedGold);
+        const cachedGold = cachedIndexMap.get("GOLDBETA") ?? cachedIndexMap.get("GOLD");
+        if (cachedGold) {
+          rawIndices = rawIndices.filter((i) => !["GOLD", "GOLDBETA"].includes(i.name.toUpperCase()));
+          rawIndices.push({ name: "GOLDBETA", ...cachedGold });
+          rawIndices.push({ name: "GOLD", ...cachedGold });
+        }
       }
     }
 
@@ -131,8 +128,7 @@ export async function GET() {
 
     await Promise.allSettled(activeFunds.map(async (fund) => {
       try {
-        // For FoFs, technical history should follow the underlying scheme.
-        // UTI Gold ETF FoF -> UTI Gold ETF AMFI scheme code 105463.
+        // For FoFs, use the underlying scheme's AMFI history for technicals.
         const technicalAmfiCode = fund.underlyingAmfiCode || fund.amfiCode;
         if (technicalAmfiCode && technicalAmfiCode.length > 0) {
           const history = await fetchHistoricalNav(technicalAmfiCode);
@@ -141,7 +137,6 @@ export async function GET() {
             return;
           }
         }
-
         const cachedTech = cachedFundMap.get(Number(fund.id))?.technicals as FundTechnicals | undefined;
         fundTechnicalsMap.set(fund.id, cachedTech ?? computeTechnicals([]));
       } catch {
@@ -150,14 +145,7 @@ export async function GET() {
       }
     }));
 
-    const fundInputs = activeFunds.map((f) => ({
-      id: f.id,
-      name: f.name,
-      proxyIndex: f.proxyIndex,
-      category: f.category,
-      technicals: fundTechnicalsMap.get(f.id) ?? computeTechnicals([]),
-    }));
-
+    const fundInputs = activeFunds.map((f) => ({ id: f.id, name: f.name, proxyIndex: f.proxyIndex, category: f.category, technicals: fundTechnicalsMap.get(f.id) ?? computeTechnicals([]) }));
     const scoredFunds = scoreFunds(fundInputs, rawIndices, weights);
     const sortedFunds = [...scoredFunds].sort((a, b) => b.finalScore - a.finalScore || a.fundId - b.fundId);
     const topFunds = sortedFunds.filter((f) => !f.isAvoid).slice(0, 5);
@@ -165,25 +153,12 @@ export async function GET() {
     const regime = computeMarketRegime(rawIndices);
 
     const now = new Date();
-    const payload = {
-      timestamp: now.toISOString(),
-      dataSourceStatus,
-      regime,
-      indices: rawIndices,
-      topFunds,
-      avoidFunds,
-      allFunds: sortedFunds,
-      weights,
-      computedInMs: Date.now() - startTime,
-    };
+    const payload = { timestamp: now.toISOString(), dataSourceStatus, regime, indices: rawIndices, topFunds, avoidFunds, allFunds: sortedFunds, weights, computedInMs: Date.now() - startTime };
 
     try {
       const existing = await db.select().from(dashboardCache).limit(1);
-      if (existing.length > 0) {
-        await db.update(dashboardCache).set({ payload, updatedAt: now }).where(eq(dashboardCache.id, existing[0].id));
-      } else {
-        await db.insert(dashboardCache).values({ payload, updatedAt: now });
-      }
+      if (existing.length > 0) await db.update(dashboardCache).set({ payload, updatedAt: now }).where(eq(dashboardCache.id, existing[0].id));
+      else await db.insert(dashboardCache).values({ payload, updatedAt: now });
     } catch {
       // Cache failure is non-fatal.
     }
@@ -191,16 +166,12 @@ export async function GET() {
     return NextResponse.json({ success: true, data: payload });
   } catch (error) {
     console.error("Dashboard refresh error:", error);
-
     try {
       const cached = await db.select().from(dashboardCache).limit(1);
-      if (cached.length > 0) {
-        return NextResponse.json({ success: false, fromCache: true, error: "Live data fetch failed. Showing last cached snapshot.", data: cached[0].payload });
-      }
+      if (cached.length > 0) return NextResponse.json({ success: false, fromCache: true, error: "Live data fetch failed. Showing last cached snapshot.", data: cached[0].payload });
     } catch {
       // DB also failed.
     }
-
     return NextResponse.json({ success: false, error: "Failed to fetch dashboard data" }, { status: 500 });
   }
 }
