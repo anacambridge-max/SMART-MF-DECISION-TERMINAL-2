@@ -43,8 +43,6 @@ async function getActiveFunds() {
         id: r.id,
         name: r.name,
         amfiCode: r.amfiCode ?? configured?.amfiCode ?? "",
-        // IMPORTANT: proxyIndex is the benchmark used for scoring.
-        // Do NOT replace it with an ETF ticker. The underlying NSE symbol is used only for the live quote.
         proxyIndex: configured?.proxyIndex || r.proxyIndex || "NIFTY 50",
         category: r.category ?? configured?.category ?? "Other",
         underlyingAmfiCode: configured?.underlyingAmfiCode,
@@ -107,9 +105,9 @@ export async function GET() {
       }
     }
 
-    // UTI Gold ETF FoF follows the actual underlying UTI Gold ETF for live market data.
-    // Official mapping: UTI Gold ETF -> NSE GOLDBETA; BSE code 590101; AMFI scheme code 105463.
-    // The FoF is scored against GOLD, while GOLD is populated from the live GOLDBETA quote.
+    // UTI Gold ETF FoF uses the listed UTI Gold ETF only as its live market proxy.
+    // BSE code 590101 / NSE symbol GOLDBETA / ETF AMFI scheme code 105463.
+    // The FoF itself remains AMFI 150714 and its own NAV is fetched below.
     const goldFund = activeFunds.find((f) => f.id === 14 || f.name === "UTI Gold ETF FoF Direct Growth");
     if (goldFund?.underlyingNseSymbol) {
       const goldQuote = await fetchEquityQuote(goldFund.underlyingNseSymbol);
@@ -124,7 +122,6 @@ export async function GET() {
           yearLow: 0,
         };
         rawIndices.push({ name: "GOLD", ...quote });
-        // Keep the exchange ticker available for diagnostics, but do not use it as the fund benchmark.
         rawIndices.push({ name: "GOLDBETA", ...quote });
       } else {
         const cachedGold = cachedIndexMap.get("GOLD") ?? cachedIndexMap.get("GOLDBETA");
@@ -141,8 +138,10 @@ export async function GET() {
 
     await Promise.allSettled(activeFunds.map(async (fund) => {
       try {
-        // For FoFs, use the underlying scheme's AMFI history for technicals.
-        const technicalAmfiCode = fund.underlyingAmfiCode || fund.amfiCode;
+        // IMPORTANT: always fetch the fund's OWN NAV history for the NAV/technical columns.
+        // For UTI Gold FoF this is AMFI 150714, NOT the underlying ETF's AMFI 105463.
+        // The underlying ETF is used only as the live intraday proxy for the GOLD move.
+        const technicalAmfiCode = fund.amfiCode;
         if (technicalAmfiCode) {
           const history = await fetchHistoricalNav(technicalAmfiCode);
           if (history.length > 10) {
